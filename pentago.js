@@ -35,6 +35,20 @@ var box;
 var boxCenter = {}; // change this later to use stuff passed by "box" instead
 var startMouseCoords = {};
 
+var isRemoteMove = false;
+var lastMove = {};
+
+const bc = new BroadcastChannel('pentago');
+bc.onmessage = (ev) => { 
+    console.log(ev);
+
+    var data = ev.data;
+    isRemoteMove = true;
+    pieceClick(null, data.dot.quad, data.dot.row, data.dot.col);
+    rotateQuad(data.rotation.quad, data.rotation.direction);
+    isRemoteMove = false;
+};
+
 function refreshBoard() {
     // visibile board reflects the internal board
     for (var quad = 0; quad < gameBoard.length; quad++) {
@@ -88,9 +102,15 @@ function rotateQuad(quad, direction) {
     if (whiteTurn) {
         var rotatewhite = new Audio('sound/rotate_white.wav');
         rotatewhite.play();
+
+        lastMove.palyer = 'w';
+        lastMove.rotation = {quad, direction};
     } else {
         var rotateblack = new Audio('sound/rotate_black.wav');
         rotateblack.play();
+
+        lastMove.palyer = 'b';
+        lastMove.rotation = {quad, direction};
     }
 
     refreshBoard();
@@ -152,6 +172,11 @@ function checkPhase() {
 
     if (rotateTurn && !gameOver) {
         turnPhase();
+
+        console.log(JSON.stringify(lastMove));
+        if(!isRemoteMove) {
+            bc.postMessage(lastMove);
+        }
     } else {
         rotateTurn = true;
     }
@@ -174,11 +199,17 @@ function pieceClick(target, quad, row, col) {
             var popwhite = new Audio('sound/pop_white.wav');
             popwhite.play();
             refreshBoard();
+
+            lastMove.palyer = 'w';
+            lastMove.dot = {quad, row, col};
         } else {
             gameBoard[quad][row][col] = -1;
             var popblack = new Audio('sound/pop_black.wav');
             popblack.play();
             refreshBoard();
+
+            lastMove.palyer = 'b';
+            lastMove.dot = {quad, row, col};
         }
     checkPhase();
     }
@@ -266,6 +297,7 @@ function endingSnap(rotateDirection) {
     dragging = false;
     var targetQuad = parseInt(box.id.slice(-1));
     rotateQuad(targetQuad,rotateDirection);
+
 }
 
 function victoryScreen(lastCheck) {
