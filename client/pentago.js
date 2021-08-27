@@ -41,12 +41,14 @@ var lastMove = {};
 const bc = new BroadcastChannel('pentago');
 bc.onmessage = (ev) => { 
     console.log(ev);
-
     var data = ev.data;
-    isRemoteMove = true;
-    pieceClick(null, data.dot.quad, data.dot.row, data.dot.col);
-    rotateQuad(data.rotation.quad, data.rotation.direction);
-    isRemoteMove = false;
+
+    if((data.player === 'w' && whiteTurn) || (data.palyer === 'b' && !whiteTurn)) {        
+        isRemoteMove = true;
+        pieceClick(null, data.dot.quad, data.dot.row, data.dot.col);
+        rotateQuad(data.rotation.quad, data.rotation.direction);
+        isRemoteMove = false;
+    }
 };
 
 function refreshBoard() {
@@ -103,13 +105,13 @@ function rotateQuad(quad, direction) {
         var rotatewhite = new Audio('sound/rotate_white.wav');
         rotatewhite.play();
 
-        lastMove.palyer = 'w';
+        lastMove.player = 'w';
         lastMove.rotation = {quad, direction};
     } else {
         var rotateblack = new Audio('sound/rotate_black.wav');
         rotateblack.play();
 
-        lastMove.palyer = 'b';
+        lastMove.player = 'b';
         lastMove.rotation = {quad, direction};
     }
 
@@ -200,7 +202,7 @@ function pieceClick(target, quad, row, col) {
             popwhite.play();
             refreshBoard();
 
-            lastMove.palyer = 'w';
+            lastMove.player = 'w';
             lastMove.dot = {quad, row, col};
         } else {
             gameBoard[quad][row][col] = -1;
@@ -208,7 +210,7 @@ function pieceClick(target, quad, row, col) {
             popblack.play();
             refreshBoard();
 
-            lastMove.palyer = 'b';
+            lastMove.player = 'b';
             lastMove.dot = {quad, row, col};
         }
     checkPhase();
