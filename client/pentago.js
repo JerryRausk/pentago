@@ -37,19 +37,7 @@ var startMouseCoords = {};
 
 var isRemoteMove = false;
 var lastMove = {};
-
-const bc = new BroadcastChannel('pentago');
-bc.onmessage = (ev) => { 
-    console.log(ev);
-    var data = ev.data;
-
-    if((data.player === 'w' && whiteTurn) || (data.palyer === 'b' && !whiteTurn)) {        
-        isRemoteMove = true;
-        pieceClick(null, data.dot.quad, data.dot.row, data.dot.col);
-        rotateQuad(data.rotation.quad, data.rotation.direction);
-        isRemoteMove = false;
-    }
-};
+var connection;
 
 function refreshBoard() {
     // visibile board reflects the internal board
@@ -96,7 +84,7 @@ function rotateQuad(quad, direction) {
             }
         }
     }
-    
+
     for (var a = 0; a < gameBoard[quad].length; a++) {
         gameBoard[quad][a] = outputArray[a].slice();
     }
@@ -106,13 +94,13 @@ function rotateQuad(quad, direction) {
         rotatewhite.play();
 
         lastMove.player = 'w';
-        lastMove.rotation = {quad, direction};
+        lastMove.rotation = { quad, direction };
     } else {
         var rotateblack = new Audio('sound/rotate_black.wav');
         rotateblack.play();
 
         lastMove.player = 'b';
-        lastMove.rotation = {quad, direction};
+        lastMove.rotation = { quad, direction };
     }
 
     refreshBoard();
@@ -129,7 +117,7 @@ function checkPhase() {
                     if (col < 3) {
                         next = gameBoard[quad][row][col];
                     } else {
-                        next = gameBoard[quad+1][row][col-3];
+                        next = gameBoard[quad + 1][row][col - 3];
                     }
                     flat.push(next);
                 }
@@ -176,8 +164,8 @@ function checkPhase() {
         turnPhase();
 
         console.log(JSON.stringify(lastMove));
-        if(!isRemoteMove) {
-            bc.postMessage(lastMove);
+        if (!isRemoteMove) {
+            connection.invoke("newMove", lastMove);
         }
     } else {
         rotateTurn = true;
@@ -203,7 +191,7 @@ function pieceClick(target, quad, row, col) {
             refreshBoard();
 
             lastMove.player = 'w';
-            lastMove.dot = {quad, row, col};
+            lastMove.dot = { quad, row, col };
         } else {
             gameBoard[quad][row][col] = -1;
             var popblack = new Audio('sound/pop_black.wav');
@@ -211,15 +199,15 @@ function pieceClick(target, quad, row, col) {
             refreshBoard();
 
             lastMove.player = 'b';
-            lastMove.dot = {quad, row, col};
+            lastMove.dot = { quad, row, col };
         }
-    checkPhase();
+        checkPhase();
     }
 }
 
 function addQuadClickListener(list) {
     for (var i = 0; i < list.length; i++) {
-        list[i].addEventListener("mousedown", function(ev) {
+        list[i].addEventListener("mousedown", function (ev) {
             if (rotateTurn === true && gameOver === false) {
                 dragging = true;
                 if (ev.preventDefault) { // prevent firefox image dragging
@@ -242,15 +230,15 @@ function addQuadClickListener(list) {
                 }
                 // get starting mouse coordinates on click
                 startMouseCoords = {
-                        x: ev.clientX,
-                        y: ev.clientY
+                    x: ev.clientX,
+                    y: ev.clientY
                 }
             }
         });
     }
 }
 
-document.addEventListener("mousemove", function(ev) {
+document.addEventListener("mousemove", function (ev) {
     if (dragging) {
         // get current mouse coordinates on drag
         var field = box.getBoundingClientRect();
@@ -260,26 +248,26 @@ document.addEventListener("mousemove", function(ev) {
         }
 
         var finalDegree;
-        if ( currentMouseCoords.x !== startMouseCoords.x || currentMouseCoords.y !== startMouseCoords.y ) {
-            var startDegree = Math.atan2( currentMouseCoords.y - boxCenter.y, currentMouseCoords.x - boxCenter.x );
-            startDegree -= Math.atan2( startMouseCoords.y - boxCenter.y, startMouseCoords.x - boxCenter.x );
+        if (currentMouseCoords.x !== startMouseCoords.x || currentMouseCoords.y !== startMouseCoords.y) {
+            var startDegree = Math.atan2(currentMouseCoords.y - boxCenter.y, currentMouseCoords.x - boxCenter.x);
+            startDegree -= Math.atan2(startMouseCoords.y - boxCenter.y, startMouseCoords.x - boxCenter.x);
             finalDegree = (startDegree * (360 / (2 * Math.PI)));
         }
-        
+
         if (finalDegree > 90 && finalDegree < 180) {
             finalDegree = 0;
             endingSnap(1);
         }
-        if (finalDegree < 270 && finalDegree > 180 ) {
+        if (finalDegree < 270 && finalDegree > 180) {
             finalDegree = 0;
             endingSnap(0);
         }
-        
+
         if (finalDegree < -90 && finalDegree > -180) {
             finalDegree = 0;
             endingSnap(0);
         }
-        if (finalDegree > -270 && finalDegree < -180 ) {
+        if (finalDegree > -270 && finalDegree < -180) {
             finalDegree = 0;
             endingSnap(1);
         }
@@ -288,17 +276,17 @@ document.addEventListener("mousemove", function(ev) {
     }
 });
 
-document.addEventListener("mouseup", function() {
+document.addEventListener("mouseup", function () {
     if (dragging) {
         dragging = false;
-        box.style.transform = "rotate(0deg)"; 
+        box.style.transform = "rotate(0deg)";
     }
 });
 
 function endingSnap(rotateDirection) {
     dragging = false;
     var targetQuad = parseInt(box.id.slice(-1));
-    rotateQuad(targetQuad,rotateDirection);
+    rotateQuad(targetQuad, rotateDirection);
 
 }
 
@@ -330,4 +318,32 @@ function changeColor(color) {
     }
 }
 
+function setupSignalR() {
+    connection = new signalR.HubConnectionBuilder()
+        .withUrl("https://localhost:44305/pentagohub")
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    async function start() {
+        try {
+            await connection.start();
+            console.log("SignalR Connected.");
+            connection.on("newMove", (message) => {
+                console.log(message);
+            });
+        } catch (err) {
+            console.log(err);
+            setTimeout(start, 5000);
+        }
+    };
+
+    connection.onclose(async () => {
+        await start();
+    });
+
+    // Start the connection.
+    start();
+}
+
 addQuadClickListener(document.getElementsByClassName("quad"));
+setupSignalR();
