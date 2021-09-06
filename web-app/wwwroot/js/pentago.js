@@ -297,3 +297,10 @@ function changeColor(color) {
 }
 
 addQuadClickListener(document.getElementsByClassName("quad"));
+
+var connection = new signalR.HubConnectionBuilder().withUrl("/pgogh").build();
+connection.start().then(async function () {
+    console.log("Connection started")
+}).catch(function (err) {
+    return console.error(err.toString());
+});
