@@ -42,6 +42,11 @@ namespace web_app
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapHub<PentagoGameHub>("/pgogh");
+                endpoints.MapGet("/", endpoints =>
+                {
+                    endpoints.Response.Redirect("/index.html");
+                    return System.Threading.Tasks.Task.CompletedTask;
+                });
             });
         }
     }

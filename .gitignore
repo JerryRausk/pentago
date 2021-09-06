@@ -386,3 +386,4 @@ FodyWeavers.xsd
 # JetBrains Rider
 .idea/
 *.sln.iml
+/web-app/Properties/ServiceDependencies/fjeddogo - Web Deploy/profile.arm.json
