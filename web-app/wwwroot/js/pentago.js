@@ -311,11 +311,11 @@ addQuadClickListener(document.getElementsByClassName("quad"));
 var connection = new signalR.HubConnectionBuilder().withUrl("/pgogh").build();
 connection.start().then(async function () {
     console.log("Connection started");
+    connection.on('receiveMove', m => { console.log(m); });
 }).catch(function (err) {
     return console.error(err.toString());
 });
 
-connection.on('receiveMove', m => { console.log(m); });
 
 async function sendMove() {
     await connection.invoke('sendMove', JSON.stringify(move));
