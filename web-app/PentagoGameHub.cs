@@ -5,9 +5,9 @@ namespace web_app
 {
     public class PentagoGameHub : Hub
     {
-        public async Task SendMessage(string user, string message)
+        public async Task SendMove(string message)
         {
-            await Clients.All.SendAsync("ReceiveMessage", user, message);
+            await Clients.All.SendAsync("ReceiveMove", message);
         }
     }
 }

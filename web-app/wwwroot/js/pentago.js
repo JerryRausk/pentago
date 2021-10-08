@@ -21,6 +21,8 @@ function populateBoard() {
     return board;
 }
 
+var move = {};
+
 var gameBoard = populateBoard();
 
 // turn variables
@@ -93,6 +95,8 @@ function rotateQuad(quad, direction) {
         rotateblack.play();
     }
 
+    move.rotate = direction ? 'clockwise' : 'counter-clockwise';
+
     refreshBoard();
     checkPhase();
 }
@@ -151,6 +155,7 @@ function checkPhase() {
     victoryCheck(1, 5, 4, 6); // diagonal from right
 
     if (rotateTurn && !gameOver) {
+        sendMove();
         turnPhase();
     } else {
         rotateTurn = true;
@@ -174,12 +179,17 @@ function pieceClick(target, quad, row, col) {
             var popwhite = new Audio('sound/pop_white.wav');
             popwhite.play();
             refreshBoard();
+            move.turn = 'white';
         } else {
             gameBoard[quad][row][col] = -1;
             var popblack = new Audio('sound/pop_black.wav');
             popblack.play();
             refreshBoard();
+            move.turn = 'black';
         }
+
+        move.piece = { quad, row, col };
+
     checkPhase();
     }
 }
@@ -300,7 +310,14 @@ addQuadClickListener(document.getElementsByClassName("quad"));
 
 var connection = new signalR.HubConnectionBuilder().withUrl("/pgogh").build();
 connection.start().then(async function () {
-    console.log("Connection started")
+    console.log("Connection started");
 }).catch(function (err) {
     return console.error(err.toString());
 });
+
+connection.on('receiveMove', m => { console.log(m); });
+
+async function sendMove() {
+    await connection.invoke('sendMove', JSON.stringify(move));
+    move = {};
+}
