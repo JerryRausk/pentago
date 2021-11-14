@@ -23,6 +23,10 @@ function populateBoard() {
 
 var move = {};
 
+var myId = Math.random();
+var myMove = true;
+var game = Math.trunc(Math.random() * 1000) + 1 + "";
+
 var gameBoard = populateBoard();
 
 // turn variables
@@ -82,7 +86,7 @@ function rotateQuad(quad, direction) {
             }
         }
     }
-    
+
     for (var a = 0; a < gameBoard[quad].length; a++) {
         gameBoard[quad][a] = outputArray[a].slice();
     }
@@ -95,7 +99,7 @@ function rotateQuad(quad, direction) {
         rotateblack.play();
     }
 
-    move.rotate = direction ? 'clockwise' : 'counter-clockwise';
+    move.rotate = { direction: direction ? 'clockwise': 'counter-clockwise', quad: quad };
 
     refreshBoard();
     checkPhase();
@@ -111,7 +115,7 @@ function checkPhase() {
                     if (col < 3) {
                         next = gameBoard[quad][row][col];
                     } else {
-                        next = gameBoard[quad+1][row][col-3];
+                        next = gameBoard[quad + 1][row][col - 3];
                     }
                     flat.push(next);
                 }
@@ -173,6 +177,8 @@ function turnPhase() {
 }
 
 function pieceClick(target, quad, row, col) {
+    if (!myMove && target) return;
+
     if (gameBoard[quad][row][col] == 0 && rotateTurn === false && gameOver === false) {
         if (whiteTurn) {
             gameBoard[quad][row][col] = 1;
@@ -190,13 +196,13 @@ function pieceClick(target, quad, row, col) {
 
         move.piece = { quad, row, col };
 
-    checkPhase();
+        checkPhase();
     }
 }
 
 function addQuadClickListener(list) {
     for (var i = 0; i < list.length; i++) {
-        list[i].addEventListener("mousedown", function(ev) {
+        list[i].addEventListener("mousedown", function (ev) {
             if (rotateTurn === true && gameOver === false) {
                 dragging = true;
                 if (ev.preventDefault) { // prevent firefox image dragging
@@ -219,15 +225,15 @@ function addQuadClickListener(list) {
                 }
                 // get starting mouse coordinates on click
                 startMouseCoords = {
-                        x: ev.clientX,
-                        y: ev.clientY
+                    x: ev.clientX,
+                    y: ev.clientY
                 }
             }
         });
     }
 }
 
-document.addEventListener("mousemove", function(ev) {
+document.addEventListener("mousemove", function (ev) {
     if (dragging) {
         // get current mouse coordinates on drag
         var field = box.getBoundingClientRect();
@@ -237,26 +243,26 @@ document.addEventListener("mousemove", function(ev) {
         }
 
         var finalDegree;
-        if ( currentMouseCoords.x !== startMouseCoords.x || currentMouseCoords.y !== startMouseCoords.y ) {
-            var startDegree = Math.atan2( currentMouseCoords.y - boxCenter.y, currentMouseCoords.x - boxCenter.x );
-            startDegree -= Math.atan2( startMouseCoords.y - boxCenter.y, startMouseCoords.x - boxCenter.x );
+        if (currentMouseCoords.x !== startMouseCoords.x || currentMouseCoords.y !== startMouseCoords.y) {
+            var startDegree = Math.atan2(currentMouseCoords.y - boxCenter.y, currentMouseCoords.x - boxCenter.x);
+            startDegree -= Math.atan2(startMouseCoords.y - boxCenter.y, startMouseCoords.x - boxCenter.x);
             finalDegree = (startDegree * (360 / (2 * Math.PI)));
         }
-        
+
         if (finalDegree > 90 && finalDegree < 180) {
             finalDegree = 0;
             endingSnap(1);
         }
-        if (finalDegree < 270 && finalDegree > 180 ) {
+        if (finalDegree < 270 && finalDegree > 180) {
             finalDegree = 0;
             endingSnap(0);
         }
-        
+
         if (finalDegree < -90 && finalDegree > -180) {
             finalDegree = 0;
             endingSnap(0);
         }
-        if (finalDegree > -270 && finalDegree < -180 ) {
+        if (finalDegree > -270 && finalDegree < -180) {
             finalDegree = 0;
             endingSnap(1);
         }
@@ -265,17 +271,17 @@ document.addEventListener("mousemove", function(ev) {
     }
 });
 
-document.addEventListener("mouseup", function() {
+document.addEventListener("mouseup", function () {
     if (dragging) {
         dragging = false;
-        box.style.transform = "rotate(0deg)"; 
+        box.style.transform = "rotate(0deg)";
     }
 });
 
 function endingSnap(rotateDirection) {
     dragging = false;
     var targetQuad = parseInt(box.id.slice(-1));
-    rotateQuad(targetQuad,rotateDirection);
+    rotateQuad(targetQuad, rotateDirection);
 }
 
 function victoryScreen(lastCheck) {
@@ -291,6 +297,7 @@ function victoryScreen(lastCheck) {
     }
     var victory = new Audio('sound/victory.wav');
     victory.play();
+    sendMove();
 }
 
 function changeColor(color) {
@@ -311,13 +318,37 @@ addQuadClickListener(document.getElementsByClassName("quad"));
 var connection = new signalR.HubConnectionBuilder().withUrl("/pgogh").build();
 connection.start().then(async function () {
     console.log("Connection started");
-    connection.on('receiveMove', m => { console.log(m); });
+    document.getElementById('game').value = game;
+    connection.on('receiveMove', m => {
+        var move = JSON.parse(m);
+        if (game === move.game) {
+            if (move.player === myId) {
+                console.log("My move bounce back: " + m);
+            } else {
+                console.log("Opponent move: " + m);
+                myMove = false;
+                pieceClick(null, move.piece.quad, move.piece.row, move.piece.col);
+                rotateQuad(move.rotate.quad, move.rotate.direction === 'clockwise');
+                myMove = true;
+            }
+        }
+    });
 }).catch(function (err) {
     return console.error(err.toString());
 });
 
+function joinGame() {
+    game = document.getElementById('game').value;
+}
+
+document.getElementById("joinGame").addEventListener("click", joinGame);
 
 async function sendMove() {
-    await connection.invoke('sendMove', JSON.stringify(move));
-    move = {};
+    if (myMove) {
+        move.player = myId;
+        move.game = game;
+        await connection.invoke('sendMove', JSON.stringify(move));
+        move = {};
+        myMove = false;
+    }
 }
