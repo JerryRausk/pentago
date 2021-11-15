@@ -34,28 +34,53 @@ connection.start().then(async function () {
     connection.on('ReceiveClick', receiveClickHandler);
     connection.on('ReceiveRotation', receiveRotationHandler);
     connection.on('ReceiveAnnouncement', receiveAnnouncementHandler);
+    connection.on('ReceiveDeclining', receiveDecliningHandler);
+    connection.on('ReceiveConfirmation', receiveConfirmationHandler);
 }).catch(function (err) {
     return console.error(err.toString());
 });
 
-
-var players = [];
+var opponentId = null
+var declined = false
+var connected = false
 
 async function announceClient() {
-    players.push(connection.connectionId);
+    console.log("Announcing client " + connection.connectionId)
     await connection.invoke('AnnounceClient', connection.connectionId);
 }
 
-async function receiveAnnouncementHandler(connectionId) {
-    if (!players.find(e => { return e == connectionId })) {
-        players.push(connectionId);
-        await connection.invoke('AnnounceClient', connection.connectionId);
-        console.log("Connections: " + players.join(", "))
-        if (players.length > 2) {
-            alert("Too many players!");
-        }
+async function receiveAnnouncementHandler(oppId) {
+    console.log("Received Announcement from " + oppId)
+    if (!opponentId) {
+        opponentId = oppId
+        connected = true
+        declined = false
+        confirmOpponent(oppId)
+    } else {
+        await declineOpponent(oppId);
     }
-    
+}
+
+async function declineOpponent(oppId) {
+    console.log("Declining client " + oppId);
+    await connection.invoke('DeclineOpponent', oppId);
+}
+
+function receiveDecliningHandler(oppId) {
+    console.log("I got declined by opponentId " + oppId);
+    declined = true;
+}
+
+async function confirmOpponent(oppId) {
+    console.log("Confirming opponentId " + oppId)
+    await connection.invoke('ConfirmOpponent', oppId);
+}
+
+function receiveConfirmationHandler(oppId) {
+    console.log("Received confirmation from opponentId " + oppId)
+    opponentId = oppId
+    connected = true
+    declined = false
 }
 
 // turn variables
@@ -209,9 +234,13 @@ function turnPhase() {
 
 function pieceClick(target, quad, row, col, localMove = true) {
     if (gameBoard[quad][row][col] == 0 && rotateTurn === false && gameOver === false) {
-
         if (localMove) {
             sendClick(quad, row, col)
+        }
+
+        if (declined || !opponentId) {
+            alert("no opponent yet!");
+            return;
         }
         
         if (whiteTurn) {
@@ -349,31 +378,39 @@ function changeColor(color) {
 
 addQuadClickListener(document.getElementsByClassName("quad"));
 
-function receiveClickHandler(receivedClickJson) {
-    console.log(receivedClickJson);
-    receivedClick = JSON.parse(receivedClickJson) ;
-    pieceClick(null, receivedClick.quad, receivedClick.row, receivedClick.col, false);
+function receiveClickHandler(receivedClickJson, oppId) {
+    if (oppId = opponentId) {
+        console.log(receivedClickJson);
+        receivedClick = JSON.parse(receivedClickJson) ;
+        pieceClick(null, receivedClick.quad, receivedClick.row, receivedClick.col, false);
+    }
 }
 
-function receiveRotationHandler(receivedRotationJson) {
-    console.log(receivedRotationJson);
-    receivedRotation = JSON.parse(receivedRotationJson);
-    rotateQuad(receivedRotation.quad, receivedRotation.direction);
+function receiveRotationHandler(receivedRotationJson, oppId) {
+    if (oppId = opponentId) {
+        console.log(receivedRotationJson);
+        receivedRotation = JSON.parse(receivedRotationJson);
+        rotateQuad(receivedRotation.quad, receivedRotation.direction);
+    }
 }
 
 async function sendClick(quad, row, col) {
-  clickToSend = {
-    "quad": quad,
-    "row": row,
-    "col": col
-  };
-  await connection.invoke('SendClick', JSON.stringify(clickToSend));
+    if (opponentId && !declined) {
+        clickToSend = {
+            "quad": quad,
+            "row": row,
+            "col": col
+        };
+        await connection.invoke('SendClick', JSON.stringify(clickToSend), opponentId);
+    } 
 }
 
 async function sendRotation(quad, direction) {
-    rotationTosend = {
-        "quad": quad,
-        "direction": direction
-    };
-    await connection.invoke('SendRotation', JSON.stringify(rotationTosend));
+    if (opponentId && !declined) {
+        rotationTosend = {
+            "quad": quad,
+            "direction": direction
+        };
+        await connection.invoke('SendRotation', JSON.stringify(rotationTosend),opponentId);
+    }
 }
