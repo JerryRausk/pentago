@@ -30,7 +30,8 @@ var connection = new signalR.HubConnectionBuilder().withUrl("/pgogh").build();
 
 connection.start().then(async function () {
     console.log("Connection started");
-    announceClient();
+    document.getElementById("connectionId").innerText = connection.connectionId
+    // announceClient();
     connection.on('ReceiveClick', receiveClickHandler);
     connection.on('ReceiveRotation', receiveRotationHandler);
     connection.on('ReceiveAnnouncement', receiveAnnouncementHandler);
@@ -41,20 +42,24 @@ connection.start().then(async function () {
 });
 
 var opponentId = null
-var declined = false
-var connected = false
 
 async function announceClient() {
     console.log("Announcing client " + connection.connectionId)
     await connection.invoke('AnnounceClient', connection.connectionId);
 }
 
+async function announceToSingleClient() {
+    oppId = document.getElementById("game").value;
+    console.log("Announcing myself to connectionId " + oppId)
+    await connection.invoke("AnnounceToSingleClient", oppId);
+}
+
 async function receiveAnnouncementHandler(oppId) {
     console.log("Received Announcement from " + oppId)
     if (!opponentId) {
         opponentId = oppId
-        connected = true
-        declined = false
+        document.getElementById("opponentId").innerText = opponentId
+        document.getElementById("joinGameContainer").hidden = true
         confirmOpponent(oppId)
     } else {
         await declineOpponent(oppId);
@@ -68,7 +73,6 @@ async function declineOpponent(oppId) {
 
 function receiveDecliningHandler(oppId) {
     console.log("I got declined by opponentId " + oppId);
-    declined = true;
 }
 
 async function confirmOpponent(oppId) {
@@ -79,11 +83,55 @@ async function confirmOpponent(oppId) {
 function receiveConfirmationHandler(oppId) {
     console.log("Received confirmation from opponentId " + oppId)
     opponentId = oppId
-    connected = true
-    declined = false
+    playerColor = "black"
+    document.getElementById("playerColor").innerText = playerColor
+    document.getElementById("opponentId").innerText = opponentId
+    document.getElementById("joinGameContainer").hidden = true
 }
 
+function receiveClickHandler(receivedClickJson, oppId) {
+    if (oppId = opponentId) {
+        console.log(receivedClickJson);
+        receivedClick = JSON.parse(receivedClickJson) ;
+        pieceClick(null, receivedClick.quad, receivedClick.row, receivedClick.col, false);
+    }
+}
+
+function receiveRotationHandler(receivedRotationJson, oppId) {
+    if (oppId = opponentId) {
+        console.log(receivedRotationJson);
+        receivedRotation = JSON.parse(receivedRotationJson);
+        rotateQuad(receivedRotation.quad, receivedRotation.direction);
+    }
+}
+
+async function sendClick(quad, row, col) {
+    if (opponentId) {
+        clickToSend = {
+            "quad": quad,
+            "row": row,
+            "col": col
+        };
+        await connection.invoke('SendClick', JSON.stringify(clickToSend), opponentId);
+    } 
+}
+
+async function sendRotation(quad, direction) {
+    if (opponentId) {
+        rotationTosend = {
+            "quad": quad,
+            "direction": direction
+        };
+        await connection.invoke('SendRotation', JSON.stringify(rotationTosend),opponentId);
+    }
+}
+
+
+
+document.getElementById("joinGame").addEventListener("click", announceToSingleClient);
+
 // turn variables
+var playerColor = "white"
 var whiteTurn = true;
 var rotateTurn = false;
 var gameOver = false;
@@ -235,10 +283,14 @@ function turnPhase() {
 function pieceClick(target, quad, row, col, localMove = true) {
     if (gameBoard[quad][row][col] == 0 && rotateTurn === false && gameOver === false) {
         if (localMove) {
+            if ((playerColor == "black" && whiteTurn) || (playerColor == "white" && !whiteTurn)) {
+                alert("not your turn!")
+                return;
+            }
             sendClick(quad, row, col)
         }
 
-        if (declined || !opponentId) {
+        if (!opponentId) {
             alert("no opponent yet!");
             return;
         }
@@ -267,7 +319,14 @@ function pieceClick(target, quad, row, col, localMove = true) {
 function addQuadClickListener(list) {
     for (var i = 0; i < list.length; i++) {
         list[i].addEventListener("mousedown", function(ev) {
-            if (rotateTurn === true && gameOver === false) {
+            if (
+                rotateTurn === true && 
+                gameOver === false && 
+                (
+                    (playerColor == "black" && !whiteTurn) ||
+                    (playerColor == "white" && whiteTurn)
+                )
+            ) {
                 dragging = true;
                 if (ev.preventDefault) { // prevent firefox image dragging
                     ev.preventDefault();
@@ -378,39 +437,3 @@ function changeColor(color) {
 
 addQuadClickListener(document.getElementsByClassName("quad"));
 
-function receiveClickHandler(receivedClickJson, oppId) {
-    if (oppId = opponentId) {
-        console.log(receivedClickJson);
-        receivedClick = JSON.parse(receivedClickJson) ;
-        pieceClick(null, receivedClick.quad, receivedClick.row, receivedClick.col, false);
-    }
-}
-
-function receiveRotationHandler(receivedRotationJson, oppId) {
-    if (oppId = opponentId) {
-        console.log(receivedRotationJson);
-        receivedRotation = JSON.parse(receivedRotationJson);
-        rotateQuad(receivedRotation.quad, receivedRotation.direction);
-    }
-}
-
-async function sendClick(quad, row, col) {
-    if (opponentId && !declined) {
-        clickToSend = {
-            "quad": quad,
-            "row": row,
-            "col": col
-        };
-        await connection.invoke('SendClick', JSON.stringify(clickToSend), opponentId);
-    } 
-}
-
-async function sendRotation(quad, direction) {
-    if (opponentId && !declined) {
-        rotationTosend = {
-            "quad": quad,
-            "direction": direction
-        };
-        await connection.invoke('SendRotation', JSON.stringify(rotationTosend),opponentId);
-    }
-}

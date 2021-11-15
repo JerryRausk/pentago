@@ -16,9 +16,16 @@
         <div id="title" class="words">
             <h1>JavaScript Pentago</h1>
             <p>by Jake Brunsman</p>
+            <p>You are playing <span id="playerColor">white</span></p>
+            <p>Your ID is: <span id="connectionId"></span></p>
+            <p>Your opponents id is: <span id="opponentId">no opponent yet...</span></p>
         </div>
         <br>
-
+        <div id="joinGameContainer" class="words">
+          <p style="text-align: center">
+            Join game with ID: <input type="text" id="game" /><button id="joinGame">Join</button>
+          </p>
+        </div>
         <div id="board">
             <svg id="quad0" class="quad" width="300" height="300" x="50" y="50">
                 <rect rx="20" ry="20" width="300" height="300" fill="darkred"></rect>

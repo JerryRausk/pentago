@@ -21,6 +21,10 @@ namespace web_app
           await Clients.Others.SendAsync("ReceiveAnnouncement", id);
         }
 
+        public async Task AnnounceToSingleClient(string opponentId)
+        {
+          await Clients.Client(opponentId).SendAsync("ReceiveAnnouncement", Context.ConnectionId);
+        }
         public async Task DeclineOpponent(string opponentId)
         {
           await Clients.Client(opponentId).SendAsync("ReceiveDeclining", Context.ConnectionId);
